@@ -3,7 +3,7 @@
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
 \usepackage[spanish,es-noshorthands]{babel}
-\usepackage{amsmath,amssymb,amsthm}
+\usepackage{amsmath,amssymb}
 \usepackage[margin=2.5cm]{geometry}
 \usepackage{algorithm}
 \usepackage{algpseudocode}
@@ -11,15 +11,6 @@
 \usepackage{listings}
 \usepackage{xcolor}
 \usepackage[hidelinks]{hyperref}
-
-% --- Entornos de teoremas ---------------------------------------------------
-\newtheorem{teorema}{Teorema}[section]
-\newtheorem{proposicion}[teorema]{Proposición}
-\newtheorem{lema}[teorema]{Lema}
-\newtheorem{corolario}[teorema]{Corolario}
-\newtheorem{observacion}[teorema]{Observación}
-\theoremstyle{definition}
-\newtheorem{definicion}[teorema]{Definición}
 
 % --- Pseudocódigo en español -------------------------------------------------
 \floatname{algorithm}{Algoritmo}
@@ -67,86 +58,42 @@
 \section{Diseño}
 
 \paragraph{Notación.}
-En todo el informe, $G=(V,E)$ es un grafo dirigido con pesos
-$w\colon E\to\mathbb{R}$, $n:=|V|$ y $m:=|E|$. Un \emph{camino} de $u$ a $v$
-es una secuencia $p=\langle v_0,\dots,v_\ell\rangle$ con $v_0=u$, $v_\ell=v$
-y $(v_{i-1},v_i)\in E$; su peso es $w(p)=\sum_{i=1}^{\ell}w(v_{i-1},v_i)$,
-puede repetir vértices (es \emph{simple} si no los repite) y sus
-\emph{vértices intermedios} son $v_1,\dots,v_{\ell-1}$. La \emph{distancia
-mínima} es $\delta(u,v):=\inf\{w(p):p\text{ camino de }u\text{ a }v\}$, con
-$\delta(u,v)=+\infty$ si no existe camino; el problema APSP consiste en
-calcular $\delta(u,v)$ para todo par $(u,v)\in V\times V$. Si $G$ contiene un
-ciclo de peso negativo, las distancias entre pares que pueden atravesarlo no
-están bien definidas (recorriéndolo repetidamente el peso decrece sin cota);
-por ello en los análisis suponemos que $G$ no contiene ciclos negativos, y
-ambos algoritmos detectan y reportan esta situación cuando ocurre.
+$G=(V,E)$ es un grafo dirigido con pesos $w\colon E\to\mathbb{R}$,
+$n:=|V|$ y $m:=|E|$. Un \emph{camino} de $u$ a $v$ es una secuencia
+$p=\langle v_0,\dots,v_\ell\rangle$ con $v_0=u$, $v_\ell=v$ y
+$(v_{i-1},v_i)\in E$; su peso es $w(p)=\sum_{i=1}^{\ell}w(v_{i-1},v_i)$, es
+\emph{simple} si no repite vértices y sus \emph{vértices intermedios} son
+$v_1,\dots,v_{\ell-1}$. La distancia mínima es
+$\delta(u,v):=\inf\{w(p):p\text{ camino de }u\text{ a }v\}$, con valor
+$+\infty$ si no existe camino, y el problema APSP consiste en calcular
+$\delta(u,v)$ para todo par $(u,v)\in V\times V$. Si $G$ contiene un ciclo
+de peso negativo, las distancias a través de él no están bien definidas
+(recorriéndolo el peso decrece sin cota); suponemos que no los hay, y ambos
+algoritmos detectan y reportan esta situación cuando ocurre.
 
 \subsection{Algoritmo Base: APSP mediante $n$ llamadas a Bellman-Ford}
 \label{sec:base}
 
 El algoritmo de Bellman-Ford, visto en clases, resuelve el problema del
-camino más corto \emph{con una fuente} (SSSP): dado un vértice $s\in V$,
-calcula $\delta(s,v)$ para \emph{todos} los vértices $v\in V$
-simultáneamente, en tiempo $O(nm)$, y además detecta si existe algún ciclo
-negativo alcanzable desde $s$ \cite[cap.~24]{clrs}. Su pseudocódigo se
-reproduce en el Algoritmo~\ref{alg:bf} para fijar notación.
+camino más corto con \emph{una} fuente (SSSP): dado $s\in V$, calcula
+$\delta(s,v)$ para todos los $v\in V$ a la vez, relajando las $m$ aristas
+durante $n-1$ rondas, y con una ronda adicional detecta si existe algún
+ciclo negativo alcanzable desde $s$ \cite[cap.~24]{clrs}. Las $n-1$ rondas
+bastan porque, sin ciclos negativos, los caminos más cortos pueden tomarse
+\emph{simples} (a lo más $n-1$ aristas): eliminar de un camino un ciclo, de
+peso $\ge 0$, no aumenta su peso.
 
-\begin{algorithm}[ht]
-\caption{\textsc{BellmanFord}$(G,w,s)$}\label{alg:bf}
-\begin{algorithmic}[1]
-\Require grafo dirigido $G=(V,E)$ con pesos $w$, vértice fuente $s$
-\Ensure vector $dist$ con $dist[v]=\delta(s,v)$ para todo $v\in V$
-\State $dist[v]\gets\infty$ para todo $v\in V$;\quad $dist[s]\gets 0$
-\For{$ronda\gets 1$ \textbf{hasta} $n-1$}
-  \For{cada arista $(u,v)\in E$}
-    \If{$dist[u]+w(u,v)<dist[v]$}
-      \State $dist[v]\gets dist[u]+w(u,v)$ \Comment{relajación de $(u,v)$}
-    \EndIf
-  \EndFor
-\EndFor
-\For{cada arista $(u,v)\in E$} \Comment{ronda extra de detección}
-  \If{$dist[u]+w(u,v)<dist[v]$}
-    \State \textbf{reportar} ciclo negativo alcanzable desde $s$
-  \EndIf
-\EndFor
-\State \Return $dist$
-\end{algorithmic}
-\end{algorithm}
-
-La correctitud de Bellman-Ford fue vista en clases y se resume así: por
-inducción sobre $t$, tras la ronda $t$ se cumple que $dist[v]$ es a lo más el
-peso del camino más corto de $s$ a $v$ que usa a lo más $t$ aristas, y en
-todo momento $dist[v]\ge\delta(s,v)$ (cada valor finito de $dist[v]$ es el
-peso de un camino real de $s$ a $v$). Sin ciclos negativos, todo camino puede
-reducirse a un camino simple de peso menor o igual eliminando los ciclos que
-contenga (cada uno de peso $\ge 0$); los caminos más cortos pueden entonces
-tomarse simples, con a lo más $n-1$ aristas, de modo que $n-1$ rondas bastan
-para que $dist[v]=\delta(s,v)$ para todo $v$.
-
-\begin{proposicion}[$n$ llamadas bastan]\label{prop:base}
-El problema APSP sobre $G$ puede resolverse realizando a lo más $n$ llamadas
-al algoritmo de Bellman-Ford.
-\end{proposicion}
-\begin{proof}
-La solución del problema APSP es la matriz
-$D\in(\mathbb{R}\cup\{\infty\})^{n\times n}$ definida por
-$D[u][v]=\delta(u,v)$. Fijemos un vértice $u\in V$ y consideremos la fila $u$
-de esta matriz, es decir, la familia de valores
-$(\delta(u,v))_{v\in V}$. Esta fila es \emph{exactamente} la salida del
-problema SSSP con fuente $u$, que una única llamada
-$\textsc{BellmanFord}(G,w,u)$ calcula de forma correcta.
-
-Como los pares de $V\times V$ se particionan en las $n$ filas
-$\{(u,v):v\in V\}$, una por cada $u\in V$, basta ejecutar
-$\textsc{BellmanFord}(G,w,u)$ una vez por cada $u\in V$ para obtener todas
-las entradas de $D$. Esto son exactamente $n$ llamadas y, por lo tanto, a lo
-más $n$. La correctitud del procedimiento completo es inmediata: cada fila de
-la matriz construida es correcta por la correctitud de Bellman-Ford, y toda
-entrada de $D$ pertenece a alguna fila.
-\end{proof}
-
-El procedimiento resultante se denomina \emph{Algoritmo Base}
-(Algoritmo~\ref{alg:base}).
+\textbf{Argumento.} La solución de APSP es la matriz $D$ de $n\times n$
+definida por $D[u][v]=\delta(u,v)$. Su fila $u$, es decir la familia de
+valores $(\delta(u,v))_{v\in V}$, es \emph{exactamente} la salida del
+problema SSSP con fuente $u$, que una llamada $\textsc{BellmanFord}(G,w,u)$
+calcula correctamente. Como las $n$ filas cubren todos los pares de
+$V\times V$, basta ejecutar Bellman-Ford una vez por cada $u\in V$ para
+obtener la matriz completa: $n$ llamadas resuelven APSP. El procedimiento
+resultante es el \emph{Algoritmo Base} (Algoritmo~\ref{alg:base}). Nótese
+además que todo ciclo negativo es alcanzable desde sus propios vértices y
+que el Algoritmo Base ejecuta Bellman-Ford desde \emph{todas} las fuentes,
+por lo que detecta cualquier ciclo negativo de $G$.
 
 \begin{algorithm}[ht]
 \caption{\textsc{AlgoritmoBase}$(G,w)$}\label{alg:base}
@@ -160,101 +107,56 @@ El procedimiento resultante se denomina \emph{Algoritmo Base}
 \end{algorithmic}
 \end{algorithm}
 
-\begin{teorema}[Complejidad del Algoritmo Base]\label{teo:complejidad-base}
-El Algoritmo Base resuelve APSP en tiempo $O(n^2 m)$ y espacio
-$\Theta(n^2)$.
-\end{teorema}
-\begin{proof}
-Cada llamada a Bellman-Ford ejecuta a lo más $n-1$ rondas más una ronda de
-detección, y cada ronda recorre las $m$ aristas realizando trabajo $O(1)$
-por arista; junto con la inicialización, una llamada cuesta $O(n+nm)=O(nm)$.
-El Algoritmo Base realiza exactamente $n$ llamadas, para un total de
-$O(n^2 m)$. En cuanto al espacio, cada llamada usa $O(n)$ memoria auxiliar
-(el vector $dist$), y la salida completa ocupa $\Theta(n^2)$; este costo es
-ineludible para cualquier algoritmo de APSP, pues la salida tiene $n^2$
-entradas.
-\end{proof}
-
-Conviene explicitar la dependencia en la densidad del grafo: en grafos
-\emph{densos}, con $m=\Theta(n^2)$, el Algoritmo Base cuesta $O(n^4)$;
-en grafos \emph{dispersos}, con $m=O(n)$, cuesta $O(n^3)$.
-
-\begin{observacion}[Detección de ciclos negativos]\label{obs:deteccion-base}
-Bellman-Ford con fuente $s$ detecta los ciclos negativos \emph{alcanzables
-desde $s$}. Todo ciclo negativo es alcanzable desde cualquiera de sus propios
-vértices, y el Algoritmo Base ejecuta Bellman-Ford desde \emph{todas} las
-fuentes; en particular, desde algún vértice de cada ciclo negativo. Por lo
-tanto, el Algoritmo Base detecta la presencia de cualquier ciclo negativo
-de $G$.
-\end{observacion}
+\textbf{Análisis de complejidad.} Cada llamada a Bellman-Ford ejecuta a lo
+más $n$ rondas ($n-1$ de relajación más la de detección), cada una con
+trabajo $O(1)$ por arista; junto con la inicialización, una llamada cuesta
+$O(n+nm)=O(nm)$. El Algoritmo Base realiza $n$ llamadas, para un total de
+\[
+O(n^2 m).
+\]
+En grafos \emph{densos} ($m=\Theta(n^2)$) esto es $O(n^4)$; en grafos
+\emph{dispersos} ($m=O(n)$), $O(n^3)$. El espacio es $\Theta(n^2)$: el
+tamaño de la propia salida, más $O(n)$ auxiliar por llamada (el vector de
+distancias).
 
 \subsection{Algoritmo de Floyd-Warshall}
 \label{sec:fw}
 
-Diseñamos ahora un algoritmo de programación dinámica que resuelve APSP en
-tiempo $O(n^3)$, sin depender de $m$. Identificamos los vértices con los
-enteros $V=\{1,2,\dots,n\}$; esta numeración es arbitraria pero queda fija.
-Usaremos dos hechos básicos sobre caminos más cortos.
+Diseñamos un algoritmo de programación dinámica que resuelve APSP en tiempo
+$\Theta(n^3)$, sin depender de $m$. Identificamos los vértices con los
+enteros $V=\{1,2,\dots,n\}$.
 
-\begin{observacion}\label{obs:simple}
-Si $G$ no contiene ciclos negativos, todo camino de $u$ a $v$ puede
-transformarse en un camino \emph{simple} de $u$ a $v$ de peso menor o igual:
-mientras el camino repita un vértice, el tramo entre las dos apariciones es un
-ciclo, y eliminarlo reduce el peso en el peso del ciclo, que es ${}\ge 0$.
-Además, los vértices intermedios del camino resultante son un subconjunto de
-los originales. En consecuencia, el ínfimo que define $\delta(u,v)$ se alcanza
-en un camino simple (con a lo más $n-1$ aristas), y en particular
-$\delta(u,u)=0$ para todo $u$.
-\end{observacion}
-
-\begin{lema}[Subestructura óptima, visto en clases]\label{lem:subestructura}
-Si $p=\langle v_0,\dots,v_\ell\rangle$ es un camino más corto de $v_0$ a
-$v_\ell$, entonces para todo $0\le i\le j\le \ell$ el subcamino
-$p_{ij}=\langle v_i,\dots,v_j\rangle$ es un camino más corto de $v_i$ a $v_j$.
-\end{lema}
-\begin{proof}
-Si existiera un camino $p'$ de $v_i$ a $v_j$ con $w(p')<w(p_{ij})$, al
-reemplazar $p_{ij}$ por $p'$ dentro de $p$ se obtendría un camino de $v_0$ a
-$v_\ell$ de peso estrictamente menor que $w(p)$, contradiciendo la
-optimalidad de $p$.
-\end{proof}
-
-\paragraph{Elección de los subproblemas.}
-La dificultad de APSP está en que un camino más corto de $i$ a $j$ puede
-pasar por cualquier subconjunto de vértices. La idea clave es
-\emph{restringir qué vértices pueden usarse como intermedios} e ir liberando
-esta restricción gradualmente. Para $0\le k\le n$, sea
-$V_k:=\{1,\dots,k\}$ (con $V_0=\emptyset$) y definamos
+\textbf{Subproblemas.} La dificultad de APSP está en que un camino más
+corto de $i$ a $j$ puede pasar por cualquier subconjunto de vértices. La
+idea es \emph{restringir qué vértices pueden usarse como intermedios} e ir
+liberando la restricción gradualmente: para $0\le k\le n$, sea
+$V_k:=\{1,\dots,k\}$ (con $V_0=\emptyset$) y
 \[
 \delta^{(k)}(i,j)\;:=\;\inf\{\,w(p) : p\text{ es un camino de } i\text{ a } j
 \text{ con todos sus vértices intermedios en } V_k\,\},
 \]
-nuevamente con valor $+\infty$ si no existe tal camino. Nótese que los
-\emph{extremos} $i,j$ no están restringidos, solo los intermedios. Como
-$V_n=V$ no impone restricción alguna, $\delta^{(n)}=\delta$; resolver los
-subproblemas de nivel $n$ resuelve APSP. Por la
-Observación~\ref{obs:simple}, si $G$ no tiene ciclos negativos el ínfimo se
-alcanza en un camino simple cuyos intermedios siguen perteneciendo a $V_k$.
+con valor $+\infty$ si no existe tal camino; los \emph{extremos} $i,j$ no
+están restringidos. Como $V_n=V$ no impone restricción alguna,
+$\delta^{(n)}=\delta$: resolver los subproblemas de nivel $n$ resuelve APSP.
+Notemos que, sin ciclos negativos, todo camino se transforma en uno
+\emph{simple} de peso menor o igual eliminando ciclos (cada uno de peso
+$\ge 0$) y sin agregar intermedios nuevos; el ínfimo se alcanza entonces en
+un camino simple, y en particular $\delta^{(k)}(u,u)=0$ para todo $u,k$.
 
-\paragraph{Recurrencia.}
-La recurrencia se inspira directamente en la subestructura óptima
-(Lema~\ref{lem:subestructura}): sea $p$ un camino más corto de $i$ a $j$ con
-intermedios en $V_k$, que por la Observación~\ref{obs:simple} podemos tomar
-simple. Hay exactamente dos casos posibles.
+\textbf{Recurrencia.} Sea $k\ge 1$ y sea $p$ un camino más corto de $i$ a
+$j$ con intermedios en $V_k$, tomado simple. Hay exactamente dos casos:
 \begin{itemize}
-  \item \textbf{El vértice $k$ no es intermedio de $p$.} Entonces todos los
-  intermedios de $p$ están en $V_{k-1}$, y $p$ es también un candidato del
-  subproblema de nivel $k-1$.
-  \item \textbf{El vértice $k$ es intermedio de $p$.} Como $p$ es simple,
-  $k$ aparece exactamente una vez, y $p$ se descompone en un camino $p_1$ de
-  $i$ a $k$ seguido de un camino $p_2$ de $k$ a $j$. Los intermedios de $p_1$
-  y de $p_2$ son intermedios de $p$ distintos de $k$, luego están en
-  $V_{k-1}$. Por el Lema~\ref{lem:subestructura}, $p_1$ y $p_2$ son a su vez
-  caminos más cortos entre sus extremos, en sus respectivos subproblemas de
-  nivel $k-1$.
+  \item \emph{$k$ no es intermedio de $p$}: todos los intermedios de $p$
+  están en $V_{k-1}$, y $p$ es candidato del subproblema de nivel $k-1$;
+  \item \emph{$k$ es intermedio de $p$}: como $p$ es simple, $k$ aparece
+  exactamente una vez y descompone a $p$ en $p_1\colon i\to k$ y
+  $p_2\colon k\to j$, ambos con intermedios en $V_{k-1}$. Por la
+  subestructura óptima de los caminos más cortos (vista en clases: todo
+  subcamino de un camino más corto es un camino más corto entre sus
+  extremos, pues si hubiera uno mejor, sustituirlo daría un camino total
+  mejor), $p_1$ y $p_2$ son óptimos en sus subproblemas de nivel $k-1$.
 \end{itemize}
-Esto motiva definir los valores de programación dinámica $D^{(k)}_{ij}$
-mediante
+Esto motiva definir los valores de programación dinámica
 \begin{equation}\label{eq:recurrencia}
 D^{(0)}_{ij}=
 \begin{cases}
@@ -265,89 +167,37 @@ w(i,j) & \text{si } i\ne j \text{ y } (i,j)\in E,\\
 \qquad
 D^{(k)}_{ij}=\min\Bigl(D^{(k-1)}_{ij},\; D^{(k-1)}_{ik}+D^{(k-1)}_{kj}\Bigr)
 \end{equation}
-para $1\le k\le n$. (Si existieran varias aristas paralelas $(i,j)$, en
-$D^{(0)}_{ij}$ se toma la de menor peso.)
+para $1\le k\le n$. (Con aristas paralelas $(i,j)$, en $D^{(0)}_{ij}$ se
+toma la de menor peso.)
 
-\begin{teorema}[Correctitud de la recurrencia]\label{teo:correctitud-fw}
-Si $G$ no contiene ciclos negativos, entonces para todo $0\le k\le n$ y todo
-par $i,j\in V$ se cumple $D^{(k)}_{ij}=\delta^{(k)}(i,j)$.
-\end{teorema}
-\begin{proof}
-Por inducción sobre $k$.
+\textbf{Correctitud.} Probamos por inducción sobre $k$ que
+$D^{(k)}_{ij}=\delta^{(k)}(i,j)$ para todo par $(i,j)$; con $k=n$ esto da
+$D^{(n)}_{ij}=\delta(i,j)$. Caso base $k=0$: un camino sin intermedios es el
+camino trivial $\langle i\rangle$ (solo si $i=j$, de peso $0$; un lazo
+$(i,i)$ de peso menor sería un ciclo negativo) o una única arista $(i,j)$,
+y $D^{(0)}_{ij}$ toma el mínimo entre estas posibilidades. Paso inductivo:
+supongamos $D^{(k-1)}=\delta^{(k-1)}$.
+$(\ge)$ Cada argumento finito del mínimo en \eqref{eq:recurrencia} es el
+peso de un camino real de $i$ a $j$ con intermedios en $V_k$: el primero, de
+un camino con intermedios en $V_{k-1}\subseteq V_k$; el segundo, de la
+concatenación de caminos óptimos $i\to k$ y $k\to j$ con intermedios en
+$V_{k-1}$ (la concatenación puede repetir vértices, pero sigue siendo un
+camino). Luego $D^{(k)}_{ij}\ge\delta^{(k)}(i,j)$.
+$(\le)$ Sea $p$ un camino más corto (simple) de $i$ a $j$ con intermedios en
+$V_k$; por el análisis de casos de la recurrencia, si $k$ no es intermedio
+de $p$ entonces $D^{(k)}_{ij}\le D^{(k-1)}_{ij}=\delta^{(k-1)}(i,j)\le w(p)$,
+y si $k$ es intermedio entonces
+$D^{(k)}_{ij}\le D^{(k-1)}_{ik}+D^{(k-1)}_{kj}=w(p_1)+w(p_2)=w(p)$. En ambos
+casos $D^{(k)}_{ij}\le\delta^{(k)}(i,j)$, lo que completa la inducción.
 
-\emph{Caso base $k=0$.} Un camino sin vértices intermedios es o bien el
-camino trivial $\langle i\rangle$ (solo si $i=j$, con peso $0$; nótese que
-ningún otro camino $i\to i$ sin intermedios tiene peso menor, pues un lazo
-$(i,i)$ negativo sería un ciclo negativo), o bien una única arista $(i,j)$.
-La definición de $D^{(0)}_{ij}$ toma el mínimo entre estas posibilidades, y
-vale $+\infty$ exactamente cuando no existe ninguna. Luego
-$D^{(0)}_{ij}=\delta^{(0)}(i,j)$.
-
-\emph{Paso inductivo.} Sea $k\ge 1$ y supongamos
-$D^{(k-1)}_{ij}=\delta^{(k-1)}(i,j)$ para todo par $(i,j)$. Probamos las dos
-desigualdades.
-
-$(\ge)$ Veamos que ambos argumentos del mínimo en \eqref{eq:recurrencia} son
-$\ge\delta^{(k)}(i,j)$, de donde $D^{(k)}_{ij}\ge\delta^{(k)}(i,j)$. Si
-$\delta^{(k-1)}(i,j)<\infty$, es el peso de un camino con intermedios en
-$V_{k-1}\subseteq V_k$, que también es candidato del nivel $k$; luego
-$\delta^{(k-1)}(i,j)\ge\delta^{(k)}(i,j)$. Si
-$\delta^{(k-1)}(i,k)+\delta^{(k-1)}(k,j)<\infty$, concatenando un camino
-óptimo $i\to k$ con uno $k\to j$ (ambos con intermedios en $V_{k-1}$) se
-obtiene un camino de $i$ a $j$ ---recordemos que nuestros caminos pueden
-repetir vértices--- cuyos intermedios están en $V_{k-1}\cup\{k\}\subseteq
-V_k$ y cuyo peso es exactamente esa suma; luego dicha suma es
-$\ge\delta^{(k)}(i,j)$. Los argumentos infinitos cumplen la desigualdad
-trivialmente.
-
-$(\le)$ Si $\delta^{(k)}(i,j)=\infty$ no hay nada que probar. En caso
-contrario, sea $p$ un camino simple de $i$ a $j$ con intermedios en $V_k$ y
-peso $w(p)=\delta^{(k)}(i,j)$ (existe por la Observación~\ref{obs:simple}).
-Según el análisis de casos anterior: si $k$ no es intermedio de $p$,
-entonces $p$ tiene intermedios en $V_{k-1}$ y
-$D^{(k)}_{ij}\le D^{(k-1)}_{ij}=\delta^{(k-1)}(i,j)\le w(p)$; si $k$ es
-intermedio de $p$, entonces $p=p_1\cdot p_2$ con $p_1\colon i\to k$ y
-$p_2\colon k\to j$ de intermedios en $V_{k-1}$, y
-\[
-D^{(k)}_{ij}\;\le\; D^{(k-1)}_{ik}+D^{(k-1)}_{kj}
-\;=\;\delta^{(k-1)}(i,k)+\delta^{(k-1)}(k,j)
-\;\le\; w(p_1)+w(p_2)\;=\;w(p).
-\]
-En ambos casos $D^{(k)}_{ij}\le w(p)=\delta^{(k)}(i,j)$, lo que completa la
-inducción.
-\end{proof}
-
-\begin{corolario}\label{cor:fw}
-Si $G$ no contiene ciclos negativos, $D^{(n)}_{ij}=\delta(i,j)$ para todo
-par $(i,j)$.
-\end{corolario}
-
-\paragraph{Implementación con una sola matriz.}
-Calcular la recurrencia \eqref{eq:recurrencia} de manera literal requeriría
-dos matrices ($D^{(k-1)}$ y $D^{(k)}$). El siguiente lema muestra que puede
-usarse una única matriz actualizada \emph{in situ}, pues en la etapa $k$ las
-entradas que se leen (fila $k$ y columna $k$) no cambian durante esa etapa.
-
-\begin{lema}[Actualización in situ]\label{lem:insitu}
-Si $G$ no contiene ciclos negativos, entonces para todo $k\ge 1$ y todo
-$i,j\in V$ se cumple $D^{(k)}_{ik}=D^{(k-1)}_{ik}$ y
-$D^{(k)}_{kj}=D^{(k-1)}_{kj}$.
-\end{lema}
-\begin{proof}
-Por el Teorema~\ref{teo:correctitud-fw}, $D^{(k-1)}_{kk}=\delta^{(k-1)}(k,k)=0$:
-el camino trivial pesa $0$ y, sin ciclos negativos, ningún camino de $k$ a
-$k$ pesa menos. Entonces, aplicando la recurrencia a la entrada $(i,k)$:
-\[
-D^{(k)}_{ik}=\min\bigl(D^{(k-1)}_{ik},\,D^{(k-1)}_{ik}+D^{(k-1)}_{kk}\bigr)
-=\min\bigl(D^{(k-1)}_{ik},\,D^{(k-1)}_{ik}+0\bigr)=D^{(k-1)}_{ik}.
-\]
-El argumento para $D^{(k)}_{kj}$ es simétrico.
-\end{proof}
-
-Por el Lema~\ref{lem:insitu}, si durante la etapa $k$ el algoritmo lee una
-entrada $D[i][k]$ o $D[k][j]$ ya actualizada, el valor leído coincide con el
-de la etapa $k-1$; la versión in situ calcula por lo tanto exactamente los
-valores de la recurrencia. El resultado es el Algoritmo~\ref{alg:fw}.
+\textbf{Algoritmo.} La recurrencia puede evaluarse sobre una \emph{única}
+matriz $D$ actualizada in situ. En efecto, como
+$D^{(k-1)}_{kk}=\delta^{(k-1)}(k,k)=0$, la etapa $k$ deja invariantes la
+fila y la columna $k$:
+$D^{(k)}_{ik}=\min(D^{(k-1)}_{ik},D^{(k-1)}_{ik}+0)=D^{(k-1)}_{ik}$ y
+simétricamente $D^{(k)}_{kj}=D^{(k-1)}_{kj}$; y esas son exactamente las
+entradas que la etapa $k$ lee. El resultado es el algoritmo de
+Floyd-Warshall (Algoritmo~\ref{alg:fw}).
 
 \begin{algorithm}[ht]
 \caption{\textsc{FloydWarshall}$(G,w)$}\label{alg:fw}
@@ -371,66 +221,39 @@ valores de la recurrencia. El resultado es el Algoritmo~\ref{alg:fw}.
 \end{algorithmic}
 \end{algorithm}
 
-\begin{teorema}[Complejidad de Floyd-Warshall]\label{teo:complejidad-fw}
-El Algoritmo~\ref{alg:fw} se ejecuta en tiempo $\Theta(n^3)$ (más $O(m)$ de
-lectura de la entrada) y usa espacio $\Theta(n^2)$.
-\end{teorema}
-\begin{proof}
-La inicialización de la matriz cuesta $\Theta(n^2)$ más un recorrido de las
-aristas, $O(m)$. El cuerpo del triple bucle anidado realiza trabajo $O(1)$
-(una suma, una comparación y a lo más una asignación) y se ejecuta
-exactamente $n^3$ veces, para un total de $\Theta(n^3)$. La comprobación
-final de la diagonal cuesta $O(n)$. En espacio, el algoritmo mantiene una
-única matriz de $n\times n$ (Lema~\ref{lem:insitu}), es decir $\Theta(n^2)$,
-que además coincide con el tamaño de la salida.
-\end{proof}
+\textbf{Detección de ciclos negativos.} La comprobación final del
+Algoritmo~\ref{alg:fw} es correcta: al terminar existe $D[i][i]<0$ si y solo
+si $G$ contiene un ciclo negativo. $(\Rightarrow)$ Toda entrada finita de
+$D$ es en todo momento el peso de un camino real (vale al inicializar, y
+cada actualización concatena dos caminos reales $i\to k$ y $k\to j$); si
+$D[i][i]<0$ existe un camino cerrado de peso negativo, y como todo camino
+cerrado se descompone en ciclos simples, alguno de ellos es negativo.
+$(\Leftarrow)$ La desigualdad $(\le)$ de la correctitud vale \emph{sin
+hipótesis sobre ciclos}: tras la etapa $k$, $D[i][j]\le w(p)$ para todo
+camino simple $p$ de $i$ a $j$ con intermedios en $V_k$ (misma inducción,
+usando que las entradas nunca aumentan). Sea $C$ un ciclo simple de peso
+negativo. Si es un lazo $(u,u)$, la inicialización ya deja
+$D[u][u]\le w(u,u)<0$. Si no, sean $x$ e $y$ sus dos vértices de mayor
+índice: $y$ parte a $C$ en dos caminos simples $p_1\colon x\to y$ y
+$p_2\colon y\to x$ con intermedios en $V_{y-1}$, y al procesar el par
+$(x,x)$ en la etapa $k=y$ queda
+$D[x][x]\le D[x][y]+D[y][x]\le w(p_1)+w(p_2)=w(C)<0$, cota que se conserva
+hasta el final porque las entradas solo decrecen.
 
-\begin{proposicion}[Detección de ciclos negativos]\label{prop:deteccion-fw}
-Al terminar el Algoritmo~\ref{alg:fw} existe $i\in V$ con $D[i][i]<0$ si y
-solo si $G$ contiene un ciclo de peso negativo.
-\end{proposicion}
-\begin{proof}
-$(\Rightarrow)$ Por inducción sobre las actualizaciones, toda entrada finita
-$D[i][j]$ es en todo momento el peso de algún camino real de $i$ a $j$: las
-entradas iniciales corresponden a caminos triviales o aristas, y cada
-actualización suma los pesos de dos caminos reales $i\to k$ y $k\to j$, cuya
-concatenación es un camino $i\to j$. Luego, si $D[i][i]<0$ existe un camino
-cerrado por $i$ de peso negativo. Todo camino cerrado se descompone en
-ciclos simples; si todos ellos tuvieran peso $\ge 0$, el camino cerrado
-pesaría $\ge 0$. Por lo tanto alguno de esos ciclos simples es negativo.
-
-$(\Leftarrow)$ Observamos primero un hecho válido \emph{sin ninguna
-hipótesis sobre ciclos}: tras la etapa $k$ del algoritmo se cumple
-$D[i][j]\le w(p)$ para todo camino simple $p$ de $i$ a $j$ con intermedios
-en $V_k$. La prueba es por inducción sobre $k$, idéntica a la desigualdad
-$(\le)$ del Teorema~\ref{teo:correctitud-fw}, usando además que las entradas
-de $D$ nunca aumentan durante la ejecución.
-
-Sea ahora $C$ un ciclo de peso negativo, que podemos tomar simple (por la
-descomposición del párrafo anterior). Si $C$ es un lazo $(u,u)$ con
-$w(u,u)<0$, la inicialización ya deja $D[u][u]\le w(u,u)<0$. En caso
-contrario $C$ tiene al menos dos vértices; sean $x$ el de mayor índice e $y$
-el de segundo mayor índice. Recorriendo $C$ desde $x$, el vértice $y$ lo
-parte en dos caminos simples $p_1\colon x\to y$ y $p_2\colon y\to x$ cuyos
-intermedios tienen todos índice menor que $y$, es decir, están en $V_{y-1}$.
-Por la observación anterior, al comenzar la etapa $k=y$ se cumple
-$D[x][y]\le w(p_1)$ y $D[y][x]\le w(p_2)$, y estas cotas se conservan
-durante la etapa (las entradas solo decrecen). Al procesar el par $(i,j)=(x,x)$
-en la etapa $k=y$, la actualización garantiza
+\textbf{Análisis de complejidad.} La inicialización cuesta $\Theta(n^2)$
+más $O(m)$ por recorrer las aristas. El cuerpo del triple bucle realiza
+trabajo $O(1)$ (una suma, una comparación y a lo más una asignación) y se
+ejecuta exactamente $n^3$ veces; la revisión final de la diagonal cuesta
+$O(n)$. El total es
 \[
-D[x][x]\;\le\; D[x][y]+D[y][x]\;\le\; w(p_1)+w(p_2)\;=\;w(C)\;<\;0,
+\Theta(n^3),
 \]
-y como las entradas nunca aumentan, al terminar sigue siendo $D[x][x]<0$.
-\end{proof}
-
-\paragraph{Comparación con el Algoritmo Base.}
-Floyd-Warshall corre en $\Theta(n^3)$ con independencia de $m$, mientras que
-el Algoritmo Base corre en $O(n^2m)$. En grafos densos ($m=\Theta(n^2)$)
-esto es $\Theta(n^3)$ contra $O(n^4)$: Floyd-Warshall gana un factor $n$
-completo. En grafos dispersos ($m=\Theta(n)$) ambos son $O(n^3)$ en el peor
-caso, pero cabe esperar que las constantes de Floyd-Warshall sean menores:
-su bucle interno realiza únicamente aritmética sobre una matriz contigua en
-memoria, sin estructuras por arista. La comparación empírica es objeto de la
+independiente de $m$, con espacio $\Theta(n^2)$: una única matriz, que
+coincide con el tamaño de la salida. Frente al Algoritmo Base ($O(n^2m)$),
+en grafos densos Floyd-Warshall gana un factor $n$ completo ($\Theta(n^3)$
+contra $O(n^4)$); en grafos dispersos ambos son $O(n^3)$, pero el bucle
+interno de Floyd-Warshall solo hace aritmética sobre una matriz contigua en
+memoria, con constantes menores. La comparación empírica es objeto de la
 sección de experimentos.
 
 \section{Implementación y verificación de correctitud (pregunta 2.1)}
@@ -456,7 +279,8 @@ con \texttt{g++} (GCC 16.1.0, MinGW-w64 de MSYS2) usando la opción
   comparación $\infty+c<x$ con $x$ finito sea falsa; así las relajaciones no
   requieren casos especiales.
   \item \textbf{Bellman-Ford} (\texttt{bellman\_ford} en
-  \texttt{src/apsp.hpp}): implementa el Algoritmo~\ref{alg:bf} con una
+  \texttt{src/apsp.hpp}): implementa el algoritmo visto en clases
+  (sección~\ref{sec:base}) con una
   mejora estándar: si una ronda completa no produce ninguna relajación, el
   vector de distancias alcanzó un punto fijo y el algoritmo termina antes.
   Esto no afecta la correctitud (el punto fijo ya es la solución) pero
@@ -467,14 +291,13 @@ con \texttt{g++} (GCC 16.1.0, MinGW-w64 de MSYS2) usando la opción
   Algoritmo~\ref{alg:base}.
   \item \textbf{Floyd-Warshall} (\texttt{floyd\_warshall}): transcripción
   directa del Algoritmo~\ref{alg:fw}, con la actualización in situ
-  justificada por el Lema~\ref{lem:insitu}. Si la entrada contiene aristas
+  justificada en la sección~\ref{sec:fw}. Si la entrada contiene aristas
   paralelas, en $D^{(0)}$ se conserva la de menor peso; los lazos de peso
   negativo quedan en la diagonal y son detectados como ciclos negativos.
   \item \textbf{Detección de ciclos negativos}: ambas funciones aceptan un
   puntero opcional \texttt{ciclo\_negativo} donde reportan la detección
-  (Observación~\ref{obs:deteccion-base} y
-  Proposición~\ref{prop:deteccion-fw}), lo que permite contrastar también
-  este aspecto entre ambos algoritmos.
+  justificada en las secciones~\ref{sec:base} y~\ref{sec:fw}, lo que
+  permite contrastar también este aspecto entre ambos algoritmos.
 \end{itemize}
 
 Las instancias se leen desde archivos de texto con el formato siguiente
