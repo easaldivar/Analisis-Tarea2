@@ -64,62 +64,22 @@
 \begin{document}
 \maketitle
 
-\section*{Notación y preliminares}
-
-A lo largo del informe, $G=(V,E)$ denota un grafo dirigido con función de
-pesos $w\colon E\to\mathbb{R}$, y escribimos $n:=|V|$ y $m:=|E|$. Un
-\emph{camino} de $u$ a $v$ es una secuencia de vértices
-$p=\langle v_0,v_1,\dots,v_\ell\rangle$ con $v_0=u$, $v_\ell=v$ y
-$(v_{i-1},v_i)\in E$ para todo $1\le i\le\ell$; su \emph{peso} es
-$w(p)=\sum_{i=1}^{\ell} w(v_{i-1},v_i)$. Permitimos que un camino repita
-vértices; un camino es \emph{simple} si no los repite. Los vértices
-$v_1,\dots,v_{\ell-1}$ (todos salvo los extremos) se denominan
-\emph{vértices intermedios} de $p$. El camino trivial $\langle u\rangle$
-tiene peso $0$. La \emph{distancia mínima} de $u$ a $v$ es
-\[
-\delta(u,v) \;:=\; \inf\{\, w(p) : p \text{ es un camino de } u \text{ a } v \,\},
-\]
-con la convención $\delta(u,v)=+\infty$ si no existe camino alguno. El
-problema de \emph{Distancia Mínima entre todo par de nodos} (APSP, por sus
-siglas en inglés) consiste en calcular $\delta(u,v)$ para todo par
-$(u,v)\in V\times V$.
-
-Si $G$ contiene un \emph{ciclo de peso negativo}, las distancias entre los
-pares de nodos que pueden atravesarlo no están bien definidas: recorriendo el
-ciclo repetidamente se obtienen caminos de peso arbitrariamente bajo. Por
-ello, en los análisis suponemos que $G$ no contiene ciclos negativos; ambos
-algoritmos estudiados \emph{detectan y reportan} esta situación cuando ocurre
-(Observación~\ref{obs:deteccion-base} y Proposición~\ref{prop:deteccion-fw}).
-Bajo este supuesto vale la siguiente observación estándar, que usaremos
-repetidamente.
-
-\begin{observacion}\label{obs:simple}
-Si $G$ no contiene ciclos negativos, todo camino de $u$ a $v$ puede
-transformarse en un camino \emph{simple} de $u$ a $v$ de peso menor o igual:
-mientras el camino repita un vértice, el tramo entre las dos apariciones es un
-ciclo, y eliminarlo reduce el peso en el peso del ciclo, que es ${}\ge 0$.
-Además, los vértices intermedios del camino resultante son un subconjunto de
-los originales. En consecuencia, el ínfimo que define $\delta(u,v)$ se alcanza
-en un camino simple (que tiene a lo más $n-1$ aristas), y en particular
-$\delta(u,u)=0$ para todo $u$.
-\end{observacion}
-
-También usaremos la propiedad de subestructura óptima de los caminos más
-cortos, vista en clases.
-
-\begin{lema}[Subestructura óptima]\label{lem:subestructura}
-Si $p=\langle v_0,\dots,v_\ell\rangle$ es un camino más corto de $v_0$ a
-$v_\ell$, entonces para todo $0\le i\le j\le \ell$ el subcamino
-$p_{ij}=\langle v_i,\dots,v_j\rangle$ es un camino más corto de $v_i$ a $v_j$.
-\end{lema}
-\begin{proof}
-Si existiera un camino $p'$ de $v_i$ a $v_j$ con $w(p')<w(p_{ij})$, al
-reemplazar $p_{ij}$ por $p'$ dentro de $p$ se obtendría un camino de $v_0$ a
-$v_\ell$ de peso estrictamente menor que $w(p)$, contradiciendo la
-optimalidad de $p$.
-\end{proof}
-
 \section{Diseño}
+
+\paragraph{Notación.}
+En todo el informe, $G=(V,E)$ es un grafo dirigido con pesos
+$w\colon E\to\mathbb{R}$, $n:=|V|$ y $m:=|E|$. Un \emph{camino} de $u$ a $v$
+es una secuencia $p=\langle v_0,\dots,v_\ell\rangle$ con $v_0=u$, $v_\ell=v$
+y $(v_{i-1},v_i)\in E$; su peso es $w(p)=\sum_{i=1}^{\ell}w(v_{i-1},v_i)$,
+puede repetir vértices (es \emph{simple} si no los repite) y sus
+\emph{vértices intermedios} son $v_1,\dots,v_{\ell-1}$. La \emph{distancia
+mínima} es $\delta(u,v):=\inf\{w(p):p\text{ camino de }u\text{ a }v\}$, con
+$\delta(u,v)=+\infty$ si no existe camino; el problema APSP consiste en
+calcular $\delta(u,v)$ para todo par $(u,v)\in V\times V$. Si $G$ contiene un
+ciclo de peso negativo, las distancias entre pares que pueden atravesarlo no
+están bien definidas (recorriéndolo repetidamente el peso decrece sin cota);
+por ello en los análisis suponemos que $G$ no contiene ciclos negativos, y
+ambos algoritmos detectan y reportan esta situación cuando ocurre.
 
 \subsection{Algoritmo Base: APSP mediante $n$ llamadas a Bellman-Ford}
 \label{sec:base}
@@ -157,10 +117,11 @@ La correctitud de Bellman-Ford fue vista en clases y se resume así: por
 inducción sobre $t$, tras la ronda $t$ se cumple que $dist[v]$ es a lo más el
 peso del camino más corto de $s$ a $v$ que usa a lo más $t$ aristas, y en
 todo momento $dist[v]\ge\delta(s,v)$ (cada valor finito de $dist[v]$ es el
-peso de un camino real de $s$ a $v$). Por la
-Observación~\ref{obs:simple}, si no hay ciclos negativos los caminos más
-cortos son simples y usan a lo más $n-1$ aristas, de modo que $n-1$ rondas
-bastan para que $dist[v]=\delta(s,v)$ para todo $v$.
+peso de un camino real de $s$ a $v$). Sin ciclos negativos, todo camino puede
+reducirse a un camino simple de peso menor o igual eliminando los ciclos que
+contenga (cada uno de peso $\ge 0$); los caminos más cortos pueden entonces
+tomarse simples, con a lo más $n-1$ aristas, de modo que $n-1$ rondas bastan
+para que $dist[v]=\delta(s,v)$ para todo $v$.
 
 \begin{proposicion}[$n$ llamadas bastan]\label{prop:base}
 El problema APSP sobre $G$ puede resolverse realizando a lo más $n$ llamadas
@@ -233,6 +194,30 @@ de $G$.
 Diseñamos ahora un algoritmo de programación dinámica que resuelve APSP en
 tiempo $O(n^3)$, sin depender de $m$. Identificamos los vértices con los
 enteros $V=\{1,2,\dots,n\}$; esta numeración es arbitraria pero queda fija.
+Usaremos dos hechos básicos sobre caminos más cortos.
+
+\begin{observacion}\label{obs:simple}
+Si $G$ no contiene ciclos negativos, todo camino de $u$ a $v$ puede
+transformarse en un camino \emph{simple} de $u$ a $v$ de peso menor o igual:
+mientras el camino repita un vértice, el tramo entre las dos apariciones es un
+ciclo, y eliminarlo reduce el peso en el peso del ciclo, que es ${}\ge 0$.
+Además, los vértices intermedios del camino resultante son un subconjunto de
+los originales. En consecuencia, el ínfimo que define $\delta(u,v)$ se alcanza
+en un camino simple (con a lo más $n-1$ aristas), y en particular
+$\delta(u,u)=0$ para todo $u$.
+\end{observacion}
+
+\begin{lema}[Subestructura óptima, visto en clases]\label{lem:subestructura}
+Si $p=\langle v_0,\dots,v_\ell\rangle$ es un camino más corto de $v_0$ a
+$v_\ell$, entonces para todo $0\le i\le j\le \ell$ el subcamino
+$p_{ij}=\langle v_i,\dots,v_j\rangle$ es un camino más corto de $v_i$ a $v_j$.
+\end{lema}
+\begin{proof}
+Si existiera un camino $p'$ de $v_i$ a $v_j$ con $w(p')<w(p_{ij})$, al
+reemplazar $p_{ij}$ por $p'$ dentro de $p$ se obtendría un camino de $v_0$ a
+$v_\ell$ de peso estrictamente menor que $w(p)$, contradiciendo la
+optimalidad de $p$.
+\end{proof}
 
 \paragraph{Elección de los subproblemas.}
 La dificultad de APSP está en que un camino más corto de $i$ a $j$ puede
