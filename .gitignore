@@ -1,0 +1,13 @@
+# Ejecutables y objetos
+*.exe
+*.o
+verificar
+
+# Auxiliares de LaTeX
+informe/*.aux
+informe/*.log
+informe/*.out
+informe/*.toc
+informe/*.synctex.gz
+informe/*.fls
+informe/*.fdb_latexmk
