@@ -4,11 +4,14 @@
 \usepackage[utf8]{inputenc}
 \usepackage[spanish,es-noshorthands]{babel}
 \usepackage{amsmath,amssymb}
+\usepackage{graphicx}
 \usepackage[margin=2.5cm]{geometry}
 \usepackage{algorithm}
 \usepackage{algpseudocode}
 \usepackage{booktabs}
+\usepackage{float}
 \usepackage{listings}
+\usepackage{url}
 \usepackage{xcolor}
 \usepackage[hidelinks]{hyperref}
 
@@ -308,6 +311,8 @@ n m
 u v w        (m lineas: arista u -> v con peso real w)
 \end{lstlisting}
 
+\pagebreak
+
 \subsection{Marco comparativo para verificar la correctitud}
 \label{sec:verificacion}
 
@@ -384,23 +389,355 @@ g++ -std=c++17 -O2 -o verificar src/verificar.cpp
 ./verificar
 \end{lstlisting}
 
-\appendix
+% ==============================================================================
+\section{Experimentos (pregunta 2.2)}
+\label{sec:experimentos}
 
+\subsection{Configuración experimental}
+
+Todos los experimentos se ejecutaron en la misma máquina:
+Windows~11, CPU AMD Ryzen~7~5800X (8 núcleos, 3.80~GHz), 24~GB~RAM,
+compilador \texttt{g++}~16.1.0 (MinGW-w64, MSYS2), bandera \texttt{-O2}.
+Las llamadas a los algoritmos se protegen con \texttt{volatile} para evitar
+que el compilador las elimine del bucle de medición, incluso con
+optimizaciones habilitadas. Se eligió \texttt{-O2} en lugar del
+\texttt{-O0} sugerido por la suite uhr porque parte de la ventaja práctica
+de Floyd-Warshall reside justamente en las optimizaciones que habilita el
+compilador: su acceso secuencial a una matriz contigua permite excelente
+localidad de caché, loop unrolling y register allocation; medir con
+\texttt{-O0} habría eliminado artificialmente estas ventajas y distorsionado
+la comparación. Cada punto se midió con al menos 32 ejecuciones; los archivos CSV de salida contienen la media,
+la desviación estándar y los cinco cuartiles ($Q_0,\dots,Q_4$) en
+microsegundos. La semilla del generador aleatorio es fija ($20260706$) para
+garantizar reproducibilidad. 
+
+Se diseñaron cuatro experimentos que varían sistemáticamente la estructura
+del grafo, cubriendo los dos extremos del espectro de densidad y la presencia
+de pesos negativos. En todos los casos ambos algoritmos fueron ejecutados
+sobre exactamente el mismo grafo (verificación cruzada interna dentro de cada
+experimento).
+
+\pagebreak
+
+\subsection{Experimento 1: $n$ creciente con densidad fija}
+
+\textbf{Parámetros:} $p=0.3$ (densidad de aristas fija), pesos en $[0,10]$,
+$n\in[10,300]$ con step $10$, 64~runs por punto.
+
+Con $p=0.3$, $m\approx 0.3\,n(n-1)=\Theta(n^2)$: el grafo es moderadamente
+denso. La teoría predice $t_{\text{FW}}=\Theta(n^3)$ y
+$t_{\text{Base}}=\Theta(n^2m)=\Theta(n^4)$. La Figura~\ref{fig:e1} muestra
+los resultados. El código fuente está en el Anexo~\ref{app:exp1}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{../experimentos/resultados/graficos/e1_n_creciente.pdf}
+\caption{Experimento 1: $n$ creciente, $p=0.3$. Floyd-Warshall escala como
+$n^3$; el Algoritmo Base como $n^4$. Las curvas punteadas son los ajustes por
+mínimos cuadrados.}
+\label{fig:e1}
+\end{figure}
+
+\pagebreak
+
+\subsection{Experimento 2: densidad creciente con $n$ fijo}
+
+\textbf{Parámetros:} $n=100$ fijo, $p\in[0.1,1.0]$ con step $0.1$, pesos en
+$[0,10]$, 64~runs por punto.
+
+Con $n=100$, Floyd-Warshall ejecuta $\Theta(100^3)$ operaciones
+independientemente de $m$, por lo que su tiempo debe ser aproximadamente
+constante. El Algoritmo Base escala como $O(n^2m)=O(10^4\cdot m)$, es decir
+lineal en $m$. La Figura~\ref{fig:e2} confirma ambas predicciones.
+Código fuente: Anexo~\ref{app:exp2}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{../experimentos/resultados/graficos/e2_densidad.pdf}
+\caption{Experimento 2: densidad creciente, $n=100$ fijo. Floyd-Warshall es
+constante; el Algoritmo Base crece linealmente con $m$.}
+\label{fig:e2}
+\end{figure}
+
+\pagebreak
+
+\subsection{Experimento 3: pesos negativos}
+
+\textbf{Parámetros:} $p=0.15$, pesos en $[-2,10]$, $n\in[10,200]$ con step
+$20$, 32~runs por punto.
+
+Los pesos incluyen valores negativos para evaluar su impacto en el tiempo
+de Bellman-Ford. La densidad $p=0.15$ se eligió como balance: con
+densidades mayores el Algoritmo Base se volvía demasiado lento incluso con
+\texttt{-O2}, mientras que con densidades mucho menores los grafos resultaban
+demasiado dispersos y los tiempos poco significativos.
+Con esta configuración la mayoría de los grafos contiene al
+menos un ciclo negativo para $n\ge 55$; no se filtran porque ambos algoritmos
+los detectan correctamente y porque descartar grafos con ciclos negativos
+habría requerido ejecutar Floyd-Warshall repetidas veces por cada $n$ hasta
+encontrar uno libre de ciclos, volviendo el experimento impracticablemente
+lento para $n$ grandes.
+
+En cuanto a los resultados, con pesos no negativos (E1) Bellman-Ford suele
+alcanzar el punto fijo en pocas rondas y el early exit corta la ejecución;
+con pesos negativos, una arista negativa puede seguir mejorando distancias
+durante muchas más rondas (a veces las $n-1$ completas), lo que anula el
+early exit y dispara el tiempo. Floyd-Warshall, en cambio, es insensible al
+signo de los pesos y ejecuta exactamente $n^3$ iteraciones en todos los
+casos. La Figura~\ref{fig:e3} muestra que, a diferencia del Experimento~1,
+la brecha entre ambos algoritmos se amplía significativamente por este
+efecto. Código fuente: Anexo~\ref{app:exp3}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{../experimentos/resultados/graficos/e3_pesos_negativos.pdf}
+\caption{Experimento 3: pesos en $[-2,10]$, $p=0.15$. Los pesos negativos
+anulan el early exit de Bellman-Ford y amplían la brecha con Floyd-Warshall.}
+\label{fig:e3}
+\end{figure}
+
+\pagebreak
+
+\subsection{Experimento 4: grafos completos}
+
+\textbf{Parámetros:} $p=1.0$ (grafo completo, $m=n(n-1)$), pesos en
+$[0,10]$, $n\in[10,200]$ con step $20$, 32~runs por punto.
+
+Este es el peor caso asintótico para el Algoritmo Base: con
+$m=n(n-1)=\Theta(n^2)$, su complejidad se vuelve $O(n^4)$ pura, mientras que
+Floyd-Warshall se mantiene en $\Theta(n^3)$. La brecha entre ambos es máxima,
+como ilustra la Figura~\ref{fig:e4}.
+Código fuente: Anexo~\ref{app:exp4}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{../experimentos/resultados/graficos/e4_grafos_completos.pdf}
+\caption{Experimento 4: grafos completos ($p=1.0$). La brecha $O(n^4)$ vs.\
+$\Theta(n^3)$ es máxima.}
+\label{fig:e4}
+\end{figure}
+
+\subsection{Generación de los gráficos}
+
+Los gráficos fueron generados con Python~3 (matplotlib) mediante el script
+\texttt{experimentos/graficar.py}. Cada gráfico incluye los puntos medidos
+con barras de error ($\pm 1$ desviación estándar) y las curvas de ajuste
+teórico calculadas por mínimos cuadrados con intercepto nulo; el coeficiente
+de determinación $R^2$ se reporta en la leyenda.
+
+\pagebreak
+
+% ==============================================================================
+\section{Datasets reales (pregunta 2.3)}
+\label{sec:datasets}
+
+Se ejecutó Floyd-Warshall sobre dos datasets reales obtenidos de
+Network Repository \cite{networkrepository}. La Tabla~\ref{tab:datasets}
+resume los resultados. Las matrices de distancia completas se escribieron en
+archivos CSV con formato \texttt{nodo1,nodo2,distancia}, donde la distancia
+es \texttt{INF} si no existe camino entre el par.
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lrrrc}
+\toprule
+Dataset & $n$ & $m$ & Tiempo (s) & Ciclo negativo \\
+\midrule
+\texttt{bio-SC-TS} & 636 & 3\,959 & 0.125 & No \\
+\texttt{power-685-bus} & 685 & 3\,249 & 0.157 & Sí \\
+\bottomrule
+\end{tabular}
+\caption{Resultados de Floyd-Warshall sobre datasets reales.}
+\label{tab:datasets}
+\end{table}
+
+\texttt{bio-SC-TS} es una red biológica de 636 nodos y 3\,959 aristas
+(dirigida, sin pesos negativos). Floyd-Warshall procesa los
+$636^3\approx 2.57\times 10^8$ pasos del bucle interno en $0.125$~s,
+consistente con la complejidad $\Theta(n^3)$ y potenciado por la
+compilación con \texttt{-O2}, que explota la localidad de caché del acceso
+secuencial a la matriz y optimiza el bucle interno mediante register
+allocation y loop unrolling.
+
+\texttt{power-685-bus} es una matriz de admitancia de un sistema eléctrico
+de 685 barras, exportada en formato Matrix~Market. Contiene pesos negativos
+que producen ciclos negativos; Floyd-Warshall los detecta correctamente
+($D[i][i]<0$ en la diagonal). Las entradas del CSV son mayoritariamente
+\texttt{INF} porque la presencia de un ciclo negativo invalida las distancias
+entre pares afectados. \linebreak
+Código fuente: Anexo~\ref{app:datasets}.
+
+% ==============================================================================
+\section{Discusión y Extensiones}
+\label{sec:discusion}
+
+\subsection{Discusión de los resultados experimentales (pregunta 3.1)}
+
+Los experimentos muestran una correspondencia clara entre la teoría y la
+ejecución práctica. En todos los casos las curvas de ajuste obtienen
+coeficientes $R^2$ cercanos a~1, lo que confirma que las cotas asintóticas
+$O(n^2m)$ para el Algoritmo Base y $\Theta(n^3)$ para Floyd-Warshall predicen
+correctamente el comportamiento observado.
+
+Sin embargo, se aprecian varios fenómenos que la notación asintótica no captura:
+
+\begin{enumerate}
+  \item \textbf{Constante multiplicativa y localidad de caché.} En el
+  Experimento~1, Floyd-Warshall es consistentemente más rápido que el
+  Algoritmo Base incluso para los $n$ más pequeños, donde la diferencia
+  asintótica aún no domina. Esto se debe a que el bucle interno de
+  Floyd-Warshall solo realiza una suma, una comparación y una asignación
+  sobre una matriz contigua en memoria (excelente localidad de caché),
+  mientras que el Algoritmo Base recorre la lista de aristas $n$ veces, con
+  patrones de acceso a memoria menos regulares.
+
+  \item \textbf{Pesos negativos y early exit.} En el Experimento~3, la brecha
+  entre ambos algoritmos es mucho mayor que en el Experimento~1. La causa es
+  que Bellman-Ford implementa un early exit cuando una ronda completa no
+  produce ninguna relajación. Con pesos no negativos, esto ocurre tras pocas
+  rondas; con pesos negativos, el algoritmo suele necesitar las $n-1$ rondas
+  completas, perdiendo esa optimización. Floyd-Warshall no tiene este
+  mecanismo y su tiempo es independiente del signo de los pesos.
+
+  \item \textbf{Efectos de caché.} En el Experimento~2, el tiempo de
+  Floyd-Warshall no es perfectamente constante: muestra una ligera tendencia
+  creciente con $m$. Esto no contradice $\Theta(n^3)$ (que es independiente
+  de $m$ asintóticamente), pero refleja que la construcción de $D^{(0)}$
+  depende de $m$ y que un mayor número de aristas puede afectar la
+  localidad de los accesos durante las primeras iteraciones.
+
+  \item \textbf{Impacto de la optimización del compilador.} Para verificar
+  que la elección de \texttt{-O2} era la correcta, se repitieron todos los
+  experimentos con \texttt{-O0} (la bandera sugerida por uhr). La diferencia
+  es contundente: Floyd-Warshall es entre 14 y 33 veces más rápido con
+  \texttt{-O2}, mientras que el Algoritmo Base apenas cambia (Tabla~%
+  \ref{tab:o2vso0}). Esto se debe a que el triple bucle de Floyd-Warshall
+  sobre una matriz contigua es el caso ideal para loop unrolling, register
+  allocation y vectorización; el Algoritmo Base, que recorre una lista de
+  aristas con accesos impredecibles a memoria, no se beneficia de estas
+  optimizaciones. Medir con \texttt{-O0} habría distorsionado la comparación
+  al eliminar artificialmente una de las ventajas prácticas más importantes
+  de Floyd-Warshall.
+
+  \begin{table}[ht]
+  \centering
+  \begin{tabular}{lrrr}
+  \toprule
+  Experimento & FW con \texttt{-O0} & FW con \texttt{-O2} & Factor \\
+  \midrule
+  E1 (coef.\ $n^3$)            & $1.35\times10^{-2}$ & $7.40\times10^{-4}$ & 18$\times$ \\
+  E2 (constante, $\mu$s)       & 13\,260 & 946    & 14$\times$ \\
+  E3 (coef.\ $n^3$)            & $2.11\times10^{-2}$ & $6.28\times10^{-4}$ & 33$\times$ \\
+  E4 (coef.\ $n^3$)            & $1.46\times10^{-2}$ & $8.68\times10^{-4}$ & 17$\times$ \\
+  \bottomrule
+  \end{tabular}
+  \caption{Comparación de Floyd-Warshall con \texttt{-O0} vs.\ \texttt{-O2}.
+  En E2 se compara la constante del ajuste; en E3 y E4 el coeficiente de
+  $n^3$.}
+  \label{tab:o2vso0}
+  \end{table}
+\end{enumerate}
+
+\subsection{Caso especial: pesos unitarios y otros contextos (pregunta 3.2)}
+
+\textbf{Pesos unitarios.} Si todos los pesos de las aristas son $1$, el
+problema APSP se reduce a calcular la distancia (en número de aristas) entre
+todo par de nodos. En este caso existe una solución más rápida que
+Floyd-Warshall: ejecutar BFS desde cada nodo. Como BFS sobre un grafo no
+pesado cuesta $O(n+m)$, las $n$ ejecuciones suman $O(n(n+m))=O(n^2+nm)$.
+En grafos dispersos ($m=O(n)$) esto es $O(n^2)$, un factor $n$ mejor que
+Floyd-Warshall; en grafos densos ($m=\Theta(n^2)$) es $O(n^3)$, igual
+asintóticamente pero con mejores constantes (BFS usa colas, no aritmética de
+punto flotante).
+
+\textbf{Otros contextos donde se puede superar a Floyd-Warshall.}
+\begin{itemize}
+  \item \textbf{Grafos dispersos} ($m=O(n)$): el Algoritmo Base ya es
+  $O(n^3)$ como Floyd-Warshall, pero ejecutar Dijkstra desde cada nodo
+  (con pesos no negativos) da $O(n(m+n\log n))$, que en grafos dispersos es
+  $O(n^2\log n)$, mejor que $O(n^3)$.
+  \item \textbf{Grafos sin ciclos} (DAGs): APSP se resuelve en
+  $O(n(n+m))=O(n^2+nm)$ mediante orden topológico y programación dinámica.
+  \item \textbf{Matrices de adyacencia densas con pesos pequeños}: el
+  algoritmo de Williams \cite{williams2014} resuelve APSP en
+  $\tilde{O}(n^3/\log^2 n)$ usando el Method of Four Russians sobre el
+  semianillo $(\min,+)$.
+\end{itemize}
+
+\subsection{Complejidad asintótica conocida y uso práctico (pregunta 3.3)}
+
+\textbf{Mejor complejidad asintótica conocida.} Para el problema APSP
+general (con pesos reales arbitrarios), el mejor algoritmo conocido a la
+fecha es el de Williams~\cite{williams2014}, que alcanza tiempo
+$\tilde{O}(n^3 / \log^2 n)$ mediante una combinación de las técnicas de
+Valiant (multiplicación de matrices sobre el semianillo $(\min,+)$) y el
+método de los four russians. No se conoce un algoritmo subcúbico
+verdaderamente general (i.e., $O(n^{3-\varepsilon})$ para $\varepsilon>0$)
+para APSP con pesos reales; de hecho, la hipótesis del APSP conjetura que no
+existe.
+
+Para grafos con pesos enteros pequeños (en valor absoluto acotado por $M$),
+existen algoritmos verdaderamente subcúbicos: Zwick~\cite{zwick2002} da
+$\tilde{O}(Mn^{\omega})$, donde $\omega<2.372$ es el exponente de la
+multiplicación de matrices, aprovechando la reducción de APSP a
+multiplicación de matrices sobre $(\min,+)$.
+
+\textbf{Implementación en la práctica.} En librerías reales de grafos, la
+versión que se utiliza no es la ingenua de triple bucle, sino una variante
+\emph{bloqueada} (blocked Floyd-Warshall) que divide la matriz en bloques
+que caben en la caché L2/L3 del procesador, explotando al máximo la localidad
+espacial y temporal. Librerías como Boost Graph Library (C++) delegan APSP a
+$n$ ejecuciones de Dijkstra cuando los pesos son no negativos y el grafo es
+disperso, reservando Floyd-Warshall bloqueado para grafos densos o cuando se
+requiere el camino más corto entre \emph{todos} los pares sin excepción.
+
+\pagebreak
+\appendix
 \section{Códigos fuente}
 
-\subsection{\texttt{src/grafo.hpp}}
+\subsection{\texttt{src/grafo.hpp}}\label{app:grafo}
 \lstinputlisting[style=cpp]{../src/grafo.hpp}
 
-\subsection{\texttt{src/apsp.hpp}}
+\subsection{\texttt{src/apsp.hpp}}\label{app:apsp}
 \lstinputlisting[style=cpp]{../src/apsp.hpp}
-
-\subsection{\texttt{src/verificar.cpp}}
+\pagebreak
+\subsection{\texttt{src/verificar.cpp}}\label{app:verificar}
 \lstinputlisting[style=cpp]{../src/verificar.cpp}
 
-\begin{thebibliography}{1}
+\subsection{\texttt{experimentos/exp1\_n\_creciente.cpp}}\label{app:exp1}
+\lstinputlisting[style=cpp]{../experimentos/exp1_n_creciente.cpp}
+
+\subsection{\texttt{experimentos/exp2\_densidad.cpp}}\label{app:exp2}
+\lstinputlisting[style=cpp]{../experimentos/exp2_densidad.cpp}
+\pagebreak
+\subsection{\texttt{experimentos/exp3\_pesos\_negativos.cpp}}\label{app:exp3}
+\lstinputlisting[style=cpp]{../experimentos/exp3_pesos_negativos.cpp}
+
+\subsection{\texttt{experimentos/exp4\_grafos\_completos.cpp}}\label{app:exp4}
+\lstinputlisting[style=cpp]{../experimentos/exp4_grafos_completos.cpp}
+
+\subsection{\texttt{experimentos/datasets\_reales.cpp}}\label{app:datasets}
+\lstinputlisting[style=cpp]{../experimentos/datasets_reales.cpp}
+
+\begin{thebibliography}{2}
 \bibitem{clrs} T.~H. Cormen, C.~E. Leiserson, R.~L. Rivest y C.~Stein,
 \emph{Introduction to Algorithms}, 3.\textsuperscript{a}~ed., MIT Press,
 2009. Capítulos 24 y 25.
+
+\bibitem{networkrepository}
+R.~A. Rossi y N.~K. Ahmed, ``The Network Data Repository with Interactive
+Graph Analytics and Visualization,'' en \emph{Proc.\ 29th AAAI Conf.\
+Artificial Intelligence}, 2015. \url{https://networkrepository.com}
+
+\bibitem{williams2014}
+R.~Williams, ``Faster all-pairs shortest paths via circuit complexity,''
+en \emph{Proc.\ 46th ACM Symp.\ Theory of Computing (STOC)}, pp.~664--673,
+2014.
+
+\bibitem{zwick2002}
+U.~Zwick, ``All pairs shortest paths using bridging sets and rectangular
+matrix multiplication,'' \emph{Journal of the ACM}, vol.~49, no.~3,
+pp.~289--317, 2002.
 \end{thebibliography}
 
 \end{document}
